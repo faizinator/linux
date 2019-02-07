@@ -2177,7 +2177,6 @@ static void sdhci_abort_tuning(struct sdhci_host *host, u32 opcode)
  */
 void sdhci_send_tuning(struct sdhci_host *host, u32 opcode)
 {
-	struct mmc_host *mmc = host->mmc;
 	struct mmc_command cmd = {};
 	struct mmc_request mrq = {};
 	unsigned long flags;
