@@ -21,6 +21,7 @@ Optional properties:
 - dma-names:	List of DMA request names. These strings correspond 1:1 with the
 		DMA specifiers listed in dmas. The string naming is to be "tx"
 		and "rx" for TX and RX DMA requests, respectively.
+- ti,needs-special-reset: Requires a special softreset sequence
 
 Example:
 	mmc1: mmc@4809c000 {
