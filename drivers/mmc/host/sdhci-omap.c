@@ -107,6 +107,7 @@ struct sdhci_omap_host {
 	struct pinctrl		*pinctrl;
 	struct pinctrl_state	**pinctrl_state;
 	bool			is_tuning;
+	bool			special_reset;
 };
 
 static void sdhci_omap_start_clock(struct sdhci_omap_host *omap_host);
@@ -779,14 +780,34 @@ static void sdhci_omap_set_uhs_signaling(struct sdhci_host *host,
 	sdhci_omap_start_clock(omap_host);
 }
 
+#define MMC_TIMEOUT_US		20000		/* 20000 micro Sec */
 static void sdhci_omap_reset(struct sdhci_host *host, u8 mask)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_omap_host *omap_host = sdhci_pltfm_priv(pltfm_host);
+	unsigned long limit = MMC_TIMEOUT_US;
+	unsigned long i = 0;
 
 	/* Don't reset data lines during tuning operation */
 	if (omap_host->is_tuning)
 		mask &= ~SDHCI_RESET_DATA;
+
+	if (omap_host->special_reset) {
+		sdhci_writeb(host, mask, SDHCI_SOFTWARE_RESET);
+		while ((!(sdhci_readb(host, SDHCI_SOFTWARE_RESET) & mask)) &&
+		       (i++ < limit))
+			udelay(1);
+		i = 0;
+		while((sdhci_readb(host, SDHCI_SOFTWARE_RESET) & mask) &&
+		      (i++ < limit))
+			udelay(1);
+
+		if (sdhci_readb(host, SDHCI_SOFTWARE_RESET) & mask)
+			dev_err(mmc_dev(host->mmc),
+				"Timeout waiting on controller reset in %s\n",
+				__func__);
+		return;
+	}
 
 	sdhci_reset(host, mask);
 }
@@ -1106,6 +1127,9 @@ static int sdhci_omap_probe(struct platform_device *pdev)
 
 	if (!mmc_can_gpio_ro(mmc))
 		mmc->caps2 |= MMC_CAP2_NO_WRITE_PROTECT;
+
+	if (of_find_property(dev->of_node, "ti,needs-special-reset", NULL))
+		omap_host->special_reset = true;
 
 	pltfm_host->clk = devm_clk_get(dev, "fck");
 	if (IS_ERR(pltfm_host->clk)) {
